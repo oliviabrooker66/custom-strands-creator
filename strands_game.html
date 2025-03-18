@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strands Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        #theme {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(8, 50px);
+            grid-gap: 5px;
+            justify-content: center;
+            margin: 20px auto;
+        }
+
+        .cell {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid #ccc;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: white;
+        }
+
+        .cell.highlight {
+            background-color: #b3d9ff;
+            /* Light blue for correct words */
+            color: black;
+        }
+
+        .cell.spangram {
+            background-color: yellow;
+            /* Yellow for spangram */
+            color: black;
+        }
+
+        #message {
+            margin-top: 20px;
+        }
+
+        #final-message {
+            font-size: 30px;
+            font-weight: bold;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="theme"></div>
+    <div id="grid" class="grid"></div>
+    <div id="message">Click letters to form words!</div>
+    <button id="guess-button" onclick="submitGuess()">Submit Guess</button>
+    <div id="final-message"></div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const theme = urlParams.get('theme');
+        const gridLetters = urlParams.get('grid');
+        const spangram = urlParams.get('spangram');
+        const wordsParam = urlParams.get('words');
+        const positionsParam = urlParams.get('positions');
+
+        const words = wordsParam ? wordsParam.split(',') : [];
+        const wordPositions = positionsParam ? JSON.parse(decodeURIComponent(positionsParam)) : {};
+
+        if (!theme || !gridLetters || gridLetters.length !== 64) {
+            document.body.innerHTML = '<p>Error: Invalid game link!</p>';
+            throw new Error("Invalid game data");
+        }
+
+        document.getElementById("theme").textContent = `Theme: ${decodeURIComponent(theme)}`;
+
+        const gridElement = document.getElementById("grid");
+        let cells = [];
+
+        gridLetters.split('').forEach((letter, index) => {
+            const cell = document.createElement("div");
+            cell.className = "cell";
+            cell.textContent = letter;
+            cell.dataset.index = index; // Store position for reference
+            cell.addEventListener("click", () => selectLetter(cell));
+            gridElement.appendChild(cell);
+            cells.push(cell);
+        });
+
+        let selectedLetters = [];
+        let correctWords = new Set();
+
+        function selectLetter(cell) {
+            if (cell.classList.contains("highlight") || cell.classList.contains("spangram")) return;
+
+            if (cell.classList.contains("selected")) {
+                cell.classList.remove("selected");
+                cell.style.backgroundColor = "white"; // Reset to white
+                selectedLetters = selectedLetters.filter(c => c !== cell);
+            } else {
+                cell.classList.add("selected");
+                cell.style.backgroundColor = "#b3d9ff"; // Turn blue on selection
+                selectedLetters.push(cell);
+            }
+
+            const formedWord = selectedLetters.map(c => c.textContent).join('');
+            document.getElementById("message").textContent = `Formed word: ${formedWord}`;
+        }
+
+        function submitGuess() {
+            const formedWord = selectedLetters.map(c => c.textContent).join('');
+            const formedPositions = selectedLetters.map(c => parseInt(c.dataset.index));
+
+            if (words.includes(formedWord) || formedWord === spangram) {
+                const expectedPositions = wordPositions[formedWord.toUpperCase()] || [];
+
+                if (JSON.stringify(expectedPositions.sort()) === JSON.stringify(formedPositions.sort())) {
+                    correctWords.add(formedWord);
+
+                    selectedLetters.forEach(cell => {
+                        cell.classList.add("highlight"); // Keep correct letters blue
+                        cell.classList.remove("selected");
+
+                        // If it's a spangram, make the letters yellow
+                        if (formedWord === spangram) {
+                            cell.classList.add("spangram");
+                            cell.style.backgroundColor = "yellow";
+                        } else {
+                            cell.style.backgroundColor = "#b3d9ff"; // Keep blue for normal words
+                        }
+                        cell.removeEventListener("click", () => selectLetter(cell));
+                    });
+
+                    document.getElementById("message").textContent = `✅ Correct word: ${formedWord}`;
+                } else {
+                    resetSelections();
+                    document.getElementById("message").textContent = `❌ Incorrect word: ${formedWord} (Incorrect positions)`;
+                }
+            } else {
+                resetSelections();
+                document.getElementById("message").textContent = `❌ Incorrect word: ${formedWord}`;
+            }
+
+            selectedLetters = [];
+
+            // Check if all words are found
+            if (correctWords.size === words.length + (spangram ? 1 : 0)) {
+                document.getElementById("final-message").textContent = `🎉 CONGRATULATIONS YOU COMPLETED YOUR BIRTHDAY STRANDS GAME!!!!! 🎉`;
+            }
+        }
+
+        function resetSelections() {
+            selectedLetters.forEach(cell => {
+                cell.classList.remove("selected");
+                cell.style.backgroundColor = "white"; // Reset incorrect guess to white
+            });
+        }
+    </script>
+</body>
+
+</html>

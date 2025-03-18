@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom 8x8 Strands Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        .controls {
+            margin: 20px;
+        }
+
+        .controls input,
+        .controls button {
+            margin: 5px;
+        }
+
+        .controls label {
+            font-weight: bold;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(8, 50px);
+            gap: 5px;
+            justify-content: center;
+            margin: 20px auto;
+        }
+
+        .grid-cell {
+            width: 50px;
+            height: 50px;
+            text-align: center;
+            font-size: 18px;
+            border: 1px solid #ccc;
+        }
+
+        .highlight {
+            background-color: #add8e6;
+        }
+
+        .validated {
+            background-color: orange;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Create Your Custom Strands Game</h1>
+    <div class="controls">
+        <label for="theme-input">Enter Theme/Clue:</label>
+        <input type="text" id="theme-input" placeholder="e.g. A Work of Art" required>
+        <br><br>
+        <label for="spangram">Enter Spangram (8+ letters):</label>
+        <input type="text" id="spangram" maxlength="64" placeholder="Enter spangram">
+        <br><br>
+        <label for="words">Enter Words (comma-separated):</label>
+        <input type="text" id="words" placeholder="word1, word2, word3...">
+        <br><br>
+        <button onclick="countLetters()">Count Letters</button>
+        <div id="letter-count-message"></div>
+        <br><br>
+        <label for="grid-letters">Enter Grid Letters (64 letters):</label>
+        <div id="grid-container" class="grid-container"></div>
+        <br><br>
+        <button onclick="storeWordPositions()">Store Word Positions</button>
+        <br><br>
+        <button id="generate-game-button" onclick="generateGame()" disabled>Generate Game</button>
+    </div>
+    <div id="message"></div>
+    <div class="link-container" id="link-container"></div>
+
+    <script>
+        let wordPositions = {};
+
+        function countLetters() {
+            const spangram = document.getElementById("spangram").value.toUpperCase().trim();
+            const wordsInput = document.getElementById("words").value.toUpperCase().trim();
+            const words = wordsInput.split(',').map(word => word.trim());
+
+            const totalLetters = spangram.length + words.reduce((sum, word) => sum + word.length, 0);
+            const difference = 64 - totalLetters;
+
+            document.getElementById("letter-count-message").textContent = `Total letters: ${totalLetters}. You need ${difference} more letters to reach 64.`;
+        }
+
+        function createGridInput() {
+            const gridContainer = document.getElementById('grid-container');
+            gridContainer.innerHTML = '';
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    const cell = document.createElement('input');
+                    cell.type = 'text';
+                    cell.maxLength = 1;
+                    cell.className = 'grid-cell';
+                    gridContainer.appendChild(cell);
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', createGridInput);
+
+        function storeWordPositions() {
+            const spangram = document.getElementById("spangram").value.toUpperCase().trim();
+            const wordsInput = document.getElementById("words").value.toUpperCase().trim();
+            const words = wordsInput.split(',').map(word => word.trim());
+
+            const gridCells = Array.from(document.querySelectorAll('.grid-cell'));
+            const gridSize = 8; // 8x8 grid
+
+            // Ask user for the word
+            const word = prompt("Enter the word or spangram for the selected letters:").toUpperCase();
+
+            if (!word || (!words.includes(word) && word !== spangram)) {
+                document.getElementById("message").innerHTML += `<p>❌ Invalid word. Please enter a valid word or spangram.</p>`;
+                return;
+            }
+
+            function getRowCol(index) {
+                return { row: Math.floor(index / gridSize), col: index % gridSize };
+            }
+
+            function getIndex(row, col) {
+                return row * gridSize + col;
+            }
+
+            const directions = [
+                { row: -1, col: 0 },  // Up
+                { row: 1, col: 0 },   // Down
+                { row: 0, col: -1 },  // Left
+                { row: 0, col: 1 },   // Right
+                { row: -1, col: -1 }, // Up-Left (Diagonal)
+                { row: -1, col: 1 },  // Up-Right (Diagonal)
+                { row: 1, col: -1 },  // Down-Left (Diagonal)
+                { row: 1, col: 1 }    // Down-Right (Diagonal)
+            ];
+
+            function findWord(row, col, index, path) {
+                if (index === word.length) return path; // Word fully found
+
+                for (const dir of directions) {
+                    const newRow = row + dir.row;
+                    const newCol = col + dir.col;
+                    const newIndex = getIndex(newRow, newCol);
+
+                    // Check if the new position is within bounds, not in the path already, and matches the letter
+                    if (
+                        newRow >= 0 && newRow < gridSize &&
+                        newCol >= 0 && newCol < gridSize &&
+                        !path.includes(newIndex) && // Avoid revisiting letters in the current word path
+                        gridCells[newIndex].value.toUpperCase() === word[index]
+                    ) {
+                        const result = findWord(newRow, newCol, index + 1, [...path, newIndex]);
+                        if (result) return result;
+                    }
+                }
+                return null;
+            }
+
+
+            // Find the starting positions for the first letter
+            let positions = null;
+            for (let i = 0; i < gridCells.length; i++) {
+                if (gridCells[i].value.toUpperCase() === word[0]) {
+                    const { row, col } = getRowCol(i);
+                    positions = findWord(row, col, 1, [i]);
+                    if (positions) break;
+                }
+            }
+
+            if (!positions) {
+                document.getElementById("message").innerHTML += `<p>❌ Could not match all letters of the word in the grid.</p>`;
+                return;
+            }
+
+            wordPositions[word] = positions;
+
+            document.getElementById("message").innerHTML += `<p>✅ Stored positions for <strong>${word}</strong>: ${JSON.stringify(positions)}</p>`;
+
+            // Mark validated cells
+            positions.forEach(index => {
+                gridCells[index].classList.add("validated");
+            });
+
+            // Check if all words are validated
+            const allWords = words.concat(spangram);
+            const allValidated = allWords.every(w => wordPositions[w]);
+
+            if (allValidated) {
+                document.getElementById("generate-game-button").disabled = false;
+                document.getElementById("message").innerHTML += `<p>✅ All words stored! You can now generate the game.</p>`;
+            } else {
+                document.getElementById("generate-game-button").disabled = true;
+            }
+        }
+
+
+
+
+
+
+        function generateGame() {
+            const theme = document.getElementById("theme-input").value.trim();
+            const spangram = document.getElementById("spangram").value.toUpperCase().trim();
+            const wordsInput = document.getElementById("words").value.toUpperCase().trim();
+            const words = wordsInput.split(',').map(word => word.trim());
+
+            const gridCells = Array.from(document.querySelectorAll('.grid-cell'));
+            const gridLetters = gridCells.map(cell => cell.value.toUpperCase()).join('');
+
+            if (!theme) {
+                document.getElementById("message").innerHTML = `<p>❌ Please enter a theme.</p>`;
+                return;
+            }
+            if (!spangram || spangram.length < 8) {
+                document.getElementById("message").innerHTML = `<p>❌ The spangram must be at least 8 letters long.</p>`;
+                return;
+            }
+            if (words.length === 0 || words[0] === "") {
+                document.getElementById("message").innerHTML = `<p>❌ Please enter at least one word.</p>`;
+                return;
+            }
+            if (gridLetters.length !== 64) {
+                document.getElementById("message").innerHTML = `<p>❌ The grid must contain exactly 64 letters.</p>`;
+                return;
+            }
+
+            const allWords = words.concat(spangram);
+            const allValidated = allWords.every(word => wordPositions[word.toUpperCase()]);
+            if (!allValidated) {
+                document.getElementById("message").innerHTML = `<p>❌ You must store positions for all words and the spangram before generating the game.</p>`;
+                return;
+            }
+
+            // If all checks pass, create the game link
+            const encodedGrid = encodeURIComponent(gridLetters);
+            const encodedTheme = encodeURIComponent(theme);
+            const encodedSpangram = encodeURIComponent(spangram);
+            const encodedWords = encodeURIComponent(words.join(','));
+            const encodedWordPositions = encodeURIComponent(JSON.stringify(wordPositions));
+
+            const link = `${window.location.origin}/strands_game.html?theme=${encodedTheme}&grid=${encodedGrid}&spangram=${encodedSpangram}&words=${encodedWords}&positions=${encodedWordPositions}`;
+
+            document.getElementById("link-container").innerHTML = `
+                <p>✅ Game created! Share this link:</p>
+                <a href="${link}" target="_blank">${link}</a>
+            `;
+        }
+
+    </script>
+</body>
+
+</html>
